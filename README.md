@@ -27,21 +27,22 @@ Future scope:
 
 ## Status
 
-Scaffold and planning baseline in place.
+First real PTY session slice is in place.
 
 Implemented today:
 
 - public `fgof_pty` and `fgof_pty_types` modules
-- baseline PTY session and terminal-size types
-- minimal backend metadata helper
-- smoke-test coverage and CI wiring
+- PTY session and terminal-size types
+- `spawn_pty()` for argv-based child launch on macOS and Linux
+- `read_some()`, `write_all()`, `resize_pty()`, and `close_pty()`
+- session-level error codes and messages
+- interactive smoke-test coverage and CI wiring
 
 Still to implement:
 
-- PTY spawn and attach
-- read and write helpers
-- resize support
-- close semantics and child cleanup
+- deeper failure semantics and edge-case hardening
+- richer session lifecycle helpers
+- expect-style helpers in a future companion package
 
 ## Why Use It
 
@@ -66,20 +67,28 @@ Current public procedures:
 
 - `pty_backend_name`
 - `default_terminal_size`
+- `spawn_pty`
+- `read_some`
+- `write_all`
+- `resize_pty`
+- `close_pty`
 
 ## Quick Start
 
 ```fortran
 program demo_pty
-  use fgof_pty, only : default_terminal_size, pty_backend_name
-  use fgof_pty_types, only : terminal_size
+  use fgof_pty, only : close_pty, pty_session, read_some, spawn_pty, write_all
   implicit none
 
-  type(terminal_size) :: size
+  type(pty_session) :: session
 
-  size = default_terminal_size()
-  print "(A)", pty_backend_name()
-  print "(I0,1X,I0)", size%rows, size%cols
+  session = spawn_pty("cat")
+  if (.not. session%is_open) error stop trim(session%error_message)
+
+  if (.not. write_all(session, "hello" // new_line("a"))) error stop trim(session%error_message)
+  print "(A)", read_some(session, 256)
+
+  if (.not. close_pty(session)) error stop trim(session%error_message)
 end program demo_pty
 ```
 
