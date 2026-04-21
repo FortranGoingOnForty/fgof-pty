@@ -294,8 +294,6 @@ contains
 
     session%error_code = code
     session%error_message = trim(message)
-    session%is_open = .false.
-    session%child_running = .false.
   end subroutine set_error
 
   subroutine apply_child_outcome(session, exited_normally, exit_code, term_signal)

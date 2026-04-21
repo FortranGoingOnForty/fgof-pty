@@ -20,17 +20,6 @@ enum {
     FGOF_PTY_ERR_FCNTL = 5
 };
 
-static void fgof_pty_disable_echo(int fd) {
-    struct termios tio;
-
-    if (tcgetattr(fd, &tio) != 0) {
-        return;
-    }
-
-    tio.c_lflag &= (tcflag_t) ~(ECHO | ECHONL);
-    tcsetattr(fd, TCSANOW, &tio);
-}
-
 static void fgof_pty_build_argv(const char *program,
                                 const char *argv_blob,
                                 int argc,
@@ -136,8 +125,6 @@ int fgof_pty_spawn(const char *program,
         ws.ws_xpixel = 0;
         ws.ws_ypixel = 0;
         (void) ioctl(slave_fd, TIOCSWINSZ, &ws);
-
-        fgof_pty_disable_echo(slave_fd);
 
         if (dup2(slave_fd, STDIN_FILENO) < 0 ||
             dup2(slave_fd, STDOUT_FILENO) < 0 ||

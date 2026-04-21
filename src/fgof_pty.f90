@@ -159,7 +159,7 @@ contains
   logical function close_pty(session) result(success)
     type(pty_session), intent(inout) :: session
 
-    if (.not. session%is_open) then
+    if (session%master_fd < 0 .and. session%child_pid <= 0) then
       call clear_error(session)
       success = .true.
       return
