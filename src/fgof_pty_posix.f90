@@ -15,6 +15,7 @@ module fgof_pty_posix
 
   public :: close_posix_pty
   public :: read_some_posix_pty
+  public :: refresh_posix_pty
   public :: resize_posix_pty
   public :: spawn_posix_pty
   public :: write_all_posix_pty
@@ -69,13 +70,29 @@ module fgof_pty_posix
       integer(c_int) :: fgof_pty_resize
     end function fgof_pty_resize
 
-    function fgof_pty_close_session(master_fd, child_pid, sys_errno) bind(C, name="fgof_pty_close_session")
+    function fgof_pty_close_session(master_fd, child_pid, exited_normally, exit_code, term_signal, sys_errno) &
+      bind(C, name="fgof_pty_close_session")
       import :: c_int
       integer(c_int), value :: master_fd
       integer(c_int), value :: child_pid
+      integer(c_int), intent(out) :: exited_normally
+      integer(c_int), intent(out) :: exit_code
+      integer(c_int), intent(out) :: term_signal
       integer(c_int), intent(out) :: sys_errno
       integer(c_int) :: fgof_pty_close_session
     end function fgof_pty_close_session
+
+    function fgof_pty_poll_child(child_pid, running, exited_normally, exit_code, term_signal, sys_errno) &
+      bind(C, name="fgof_pty_poll_child")
+      import :: c_int
+      integer(c_int), value :: child_pid
+      integer(c_int), intent(out) :: running
+      integer(c_int), intent(out) :: exited_normally
+      integer(c_int), intent(out) :: exit_code
+      integer(c_int), intent(out) :: term_signal
+      integer(c_int), intent(out) :: sys_errno
+      integer(c_int) :: fgof_pty_poll_child
+    end function fgof_pty_poll_child
   end interface
 
 contains
@@ -114,6 +131,10 @@ contains
       session%child_pid = int(child_pid)
       session%is_open = .true.
       session%child_running = .true.
+      session%completed = .false.
+      session%exited_normally = .false.
+      session%exit_code = -1
+      session%term_signal = 0
       session%size = term_size
       session%error_code = FGOF_PTY_OK
       session%error_message = ""
@@ -140,6 +161,7 @@ contains
     character(kind=c_char), allocatable :: c_buffer(:)
     integer(c_int) :: rc
     integer(c_int) :: sys_errno
+    logical :: refreshed
 
     allocate(c_buffer(max_bytes))
     rc = fgof_pty_read_some(int(session%master_fd, c_int), c_buffer, int(max_bytes, c_size_t), sys_errno)
@@ -151,6 +173,7 @@ contains
     end if
 
     if (rc == 0_c_int) then
+      refreshed = refresh_posix_pty(session)
       text = ""
       return
     end if
@@ -202,10 +225,22 @@ contains
     type(pty_session), intent(inout) :: session
 
     integer(c_int) :: rc
+    integer(c_int) :: exited_normally
+    integer(c_int) :: exit_code
+    integer(c_int) :: term_signal
     integer(c_int) :: sys_errno
 
-    rc = fgof_pty_close_session(int(session%master_fd, c_int), int(session%child_pid, c_int), sys_errno)
+    if (session%child_running) then
+      if (.not. refresh_posix_pty(session)) then
+        success = .false.
+        return
+      end if
+    end if
+
+    rc = fgof_pty_close_session(int(session%master_fd, c_int), int(session%child_pid, c_int), &
+                                exited_normally, exit_code, term_signal, sys_errno)
     if (rc == 0_c_int) then
+      call apply_child_outcome(session, exited_normally, exit_code, term_signal)
       session%master_fd = -1
       session%child_pid = -1
       session%is_open = .false.
@@ -217,6 +252,39 @@ contains
     end if
   end function close_posix_pty
 
+  logical function refresh_posix_pty(session) result(success)
+    type(pty_session), intent(inout) :: session
+
+    integer(c_int) :: rc
+    integer(c_int) :: running
+    integer(c_int) :: exited_normally
+    integer(c_int) :: exit_code
+    integer(c_int) :: term_signal
+    integer(c_int) :: sys_errno
+
+    if (session%child_pid <= 0) then
+      success = .true.
+      return
+    end if
+
+    rc = fgof_pty_poll_child(int(session%child_pid, c_int), running, exited_normally, exit_code, term_signal, sys_errno)
+    if (rc /= 0_c_int) then
+      call set_error(session, FGOF_PTY_ERR_INTERNAL, errno_message("PTY child poll failed", sys_errno))
+      success = .false.
+      return
+    end if
+
+    if (running /= 0_c_int) then
+      session%child_running = .true.
+      success = .true.
+      return
+    end if
+
+    session%child_running = .false.
+    call apply_child_outcome(session, exited_normally, exit_code, term_signal)
+    success = .true.
+  end function refresh_posix_pty
+
   subroutine set_error(session, code, message)
     type(pty_session), intent(inout) :: session
     integer, intent(in) :: code
@@ -227,6 +295,20 @@ contains
     session%is_open = .false.
     session%child_running = .false.
   end subroutine set_error
+
+  subroutine apply_child_outcome(session, exited_normally, exit_code, term_signal)
+    type(pty_session), intent(inout) :: session
+    integer(c_int), intent(in) :: exited_normally
+    integer(c_int), intent(in) :: exit_code
+    integer(c_int), intent(in) :: term_signal
+
+    if (session%completed) return
+
+    session%completed = .true.
+    session%exited_normally = (exited_normally /= 0_c_int)
+    session%exit_code = int(exit_code)
+    session%term_signal = int(term_signal)
+  end subroutine apply_child_outcome
 
   function to_c_string(str) result(buf)
     character(len=*), intent(in) :: str

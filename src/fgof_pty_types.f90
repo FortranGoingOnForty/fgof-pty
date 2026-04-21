@@ -34,6 +34,10 @@ module fgof_pty_types
     integer :: child_pid = -1
     logical :: is_open = .false.
     logical :: child_running = .false.
+    logical :: completed = .false.
+    logical :: exited_normally = .false.
+    integer :: exit_code = -1
+    integer :: term_signal = 0
     type(terminal_size) :: size = terminal_size()
     integer :: error_code = FGOF_PTY_OK
     character(len=:), allocatable :: error_message

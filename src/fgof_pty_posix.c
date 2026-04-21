@@ -259,10 +259,61 @@ int fgof_pty_resize(int fd, int rows, int cols, int *sys_errno) {
     return 0;
 }
 
-int fgof_pty_close_session(int master_fd, int child_pid, int *sys_errno) {
+int fgof_pty_poll_child(int child_pid,
+                        int *running,
+                        int *exited_normally,
+                        int *exit_code,
+                        int *term_signal,
+                        int *sys_errno) {
+    int status;
+    pid_t rc;
+
+    *running = 0;
+    *exited_normally = 0;
+    *exit_code = -1;
+    *term_signal = 0;
+    *sys_errno = 0;
+
+    if (child_pid <= 0) {
+        return 0;
+    }
+
+    rc = waitpid(child_pid, &status, WNOHANG);
+    if (rc == 0) {
+        *running = 1;
+        return 0;
+    }
+    if (rc < 0) {
+        if (errno == ECHILD) {
+          return 0;
+        }
+        *sys_errno = errno;
+        return -1;
+    }
+
+    if (WIFEXITED(status)) {
+        *exited_normally = 1;
+        *exit_code = WEXITSTATUS(status);
+    } else if (WIFSIGNALED(status)) {
+        *term_signal = WTERMSIG(status);
+    }
+
+    return 0;
+}
+
+int fgof_pty_close_session(int master_fd,
+                           int child_pid,
+                           int *exited_normally,
+                           int *exit_code,
+                           int *term_signal,
+                           int *sys_errno) {
     int attempt;
     int status;
+    int running;
 
+    *exited_normally = 0;
+    *exit_code = -1;
+    *term_signal = 0;
     *sys_errno = 0;
 
     if (master_fd >= 0 && close(master_fd) != 0) {
@@ -274,6 +325,13 @@ int fgof_pty_close_session(int master_fd, int child_pid, int *sys_errno) {
         return 0;
     }
 
+    if (fgof_pty_poll_child(child_pid, &running, exited_normally, exit_code, term_signal, sys_errno) != 0) {
+        return -1;
+    }
+    if (!running) {
+        return 0;
+    }
+
     (void) kill(child_pid, SIGHUP);
 
     for (attempt = 0; attempt < 50; ++attempt) {
@@ -281,6 +339,12 @@ int fgof_pty_close_session(int master_fd, int child_pid, int *sys_errno) {
 
         rc = waitpid(child_pid, &status, WNOHANG);
         if (rc == child_pid) {
+            if (WIFEXITED(status)) {
+                *exited_normally = 1;
+                *exit_code = WEXITSTATUS(status);
+            } else if (WIFSIGNALED(status)) {
+                *term_signal = WTERMSIG(status);
+            }
             return 0;
         }
         if (rc < 0) {
@@ -300,9 +364,19 @@ int fgof_pty_close_session(int master_fd, int child_pid, int *sys_errno) {
         usleep(10000);
     }
 
-    if (waitpid(child_pid, &status, 0) < 0 && errno != ECHILD) {
-        *sys_errno = errno;
-        return -1;
+    if (waitpid(child_pid, &status, 0) < 0) {
+        if (errno != ECHILD) {
+            *sys_errno = errno;
+            return -1;
+        }
+        return 0;
+    }
+
+    if (WIFEXITED(status)) {
+        *exited_normally = 1;
+        *exit_code = WEXITSTATUS(status);
+    } else if (WIFSIGNALED(status)) {
+        *term_signal = WTERMSIG(status);
     }
 
     return 0;

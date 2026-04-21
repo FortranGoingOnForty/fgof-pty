@@ -1,5 +1,5 @@
 module fgof_pty
-  use fgof_pty_posix, only : close_posix_pty, read_some_posix_pty, resize_posix_pty, spawn_posix_pty, write_all_posix_pty
+  use fgof_pty_posix, only : close_posix_pty, read_some_posix_pty, refresh_posix_pty, resize_posix_pty, spawn_posix_pty, write_all_posix_pty
   use fgof_pty_types, only : &
     FGOF_PTY_ERR_CLOSE_FAILED, &
     FGOF_PTY_ERR_INTERNAL, &
@@ -29,6 +29,7 @@ module fgof_pty
   public :: pty_backend_name
   public :: pty_session
   public :: read_some
+  public :: refresh_pty
   public :: resize_pty
   public :: spawn_pty
   public :: terminal_size
@@ -152,6 +153,19 @@ contains
     success = close_posix_pty(session)
   end function close_pty
 
+  logical function refresh_pty(session) result(success)
+    type(pty_session), intent(inout) :: session
+
+    call clear_error(session)
+
+    if (session%child_pid <= 0) then
+      success = .true.
+      return
+    end if
+
+    success = refresh_posix_pty(session)
+  end function refresh_pty
+
   subroutine init_session(session)
     type(pty_session), intent(out) :: session
 
@@ -159,6 +173,10 @@ contains
     session%child_pid = -1
     session%is_open = .false.
     session%child_running = .false.
+    session%completed = .false.
+    session%exited_normally = .false.
+    session%exit_code = -1
+    session%term_signal = 0
     session%size = default_terminal_size()
     session%error_code = FGOF_PTY_OK
     session%error_message = ""
