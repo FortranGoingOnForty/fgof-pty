@@ -1,5 +1,7 @@
 # fgof-pty
 
+[![CI](https://github.com/FortranGoingOnForty/fgof-pty/actions/workflows/ci.yml/badge.svg)](https://github.com/FortranGoingOnForty/fgof-pty/actions/workflows/ci.yml)
+
 POSIX-first PTY and terminal session helpers for modern Fortran applications.
 
 `fgof-pty` is intended to be a small, standalone library that gives Fortran tools an ergonomic PTY surface for interactive subprocesses, terminal resizing, and terminal-aware automation.
