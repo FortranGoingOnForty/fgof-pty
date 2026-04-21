@@ -36,6 +36,7 @@ Implemented today:
 - `spawn_pty()` for argv-based child launch on macOS and Linux
 - `read_some()`, `write_all()`, `resize_pty()`, `refresh_pty()`, `wait_pty()`, and `close_pty()`
 - session-level error codes and messages
+- blank-trimmed `program` and `argv` inputs so normal Fortran fixed-length strings work naturally
 - interactive smoke-test coverage and CI wiring
 
 Still to implement:
@@ -83,8 +84,13 @@ program demo_pty
   implicit none
 
   type(pty_session) :: session
+  character(len=40) :: argv(2)
 
-  session = spawn_pty("cat")
+  argv = ""
+  argv(1) = "-c"
+  argv(2) = 'read line; printf ''%s\n'' "$line"'
+
+  session = spawn_pty("sh", argv)
   if (.not. session%is_open) error stop trim(session%error_message)
 
   if (.not. write_all(session, "hello" // new_line("a"))) error stop trim(session%error_message)
@@ -114,6 +120,7 @@ That is the baseline verification command locally and in CI.
 - POSIX-first for macOS and Linux
 - intended to stay independently versioned and releasable
 - focused on PTY transport and session control, not full terminal UI layers
+- `spawn_pty()` trims trailing blanks from `program` and each `argv` entry to fit common Fortran string ergonomics
 
 ## License
 
