@@ -209,6 +209,9 @@ int fgof_pty_read_some(int fd, char *buffer, size_t buffer_len, int *sys_errno) 
         if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
             return 0;
         }
+        if (errno == EIO) {
+            return 0;
+        }
         *sys_errno = errno;
         return -1;
     }

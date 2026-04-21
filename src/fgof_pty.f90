@@ -9,6 +9,7 @@ module fgof_pty
     FGOF_PTY_ERR_RESIZE_FAILED, &
     FGOF_PTY_ERR_EXEC_FAILED, &
     FGOF_PTY_ERR_SPAWN_FAILED, &
+    FGOF_PTY_ERR_TIMEOUT, &
     FGOF_PTY_OK, &
     pty_session, &
     terminal_size
@@ -23,6 +24,7 @@ module fgof_pty
   public :: FGOF_PTY_ERR_IO_FAILED
   public :: FGOF_PTY_ERR_RESIZE_FAILED
   public :: FGOF_PTY_ERR_CLOSE_FAILED
+  public :: FGOF_PTY_ERR_TIMEOUT
   public :: FGOF_PTY_ERR_INTERNAL
   public :: close_pty
   public :: default_terminal_size
@@ -33,6 +35,7 @@ module fgof_pty
   public :: resize_pty
   public :: spawn_pty
   public :: terminal_size
+  public :: wait_pty
   public :: write_all
 
 contains
@@ -116,6 +119,19 @@ contains
       return
     end if
 
+    if (session%child_running) then
+      if (.not. refresh_pty(session)) then
+        success = .false.
+        return
+      end if
+    end if
+
+    if (session%completed .or. .not. session%child_running) then
+      call set_error(session, FGOF_PTY_ERR_IO_FAILED, "PTY child is no longer running")
+      success = .false.
+      return
+    end if
+
     success = write_all_posix_pty(session, text)
   end function write_all
 
@@ -166,6 +182,56 @@ contains
     success = refresh_posix_pty(session)
   end function refresh_pty
 
+  logical function wait_pty(session, timeout_ms) result(success)
+    type(pty_session), intent(inout) :: session
+    integer, intent(in) :: timeout_ms
+    integer :: start_count
+    integer :: current_count
+    integer :: rate
+    integer :: elapsed_ms
+
+    call clear_error(session)
+
+    if (.not. session%is_open .and. .not. session%completed) then
+      call set_error(session, FGOF_PTY_ERR_IO_FAILED, "PTY session is not open")
+      success = .false.
+      return
+    end if
+
+    if (.not. session%child_running) then
+      success = .true.
+      return
+    end if
+
+    call system_clock(start_count, rate)
+    do
+      if (.not. refresh_posix_pty(session)) then
+        success = .false.
+        return
+      end if
+
+      if (.not. session%child_running) then
+        success = .true.
+        return
+      end if
+
+      call system_clock(current_count)
+      if (rate > 0) then
+        elapsed_ms = int((real(current_count - start_count) / real(rate)) * 1000.0)
+      else
+        elapsed_ms = max(0, timeout_ms) + 1
+      end if
+
+      if (elapsed_ms > max(0, timeout_ms)) then
+        call set_error(session, FGOF_PTY_ERR_TIMEOUT, "PTY wait timed out")
+        success = .false.
+        return
+      end if
+
+      call spin_wait(20)
+    end do
+  end function wait_pty
+
   subroutine init_session(session)
     type(pty_session), intent(out) :: session
 
@@ -175,6 +241,7 @@ contains
     session%child_running = .false.
     session%completed = .false.
     session%exited_normally = .false.
+    session%eof_reached = .false.
     session%exit_code = -1
     session%term_signal = 0
     session%size = default_terminal_size()
@@ -203,5 +270,22 @@ contains
 
     valid = (size%rows > 0 .and. size%cols > 0)
   end function valid_terminal_size
+
+  subroutine spin_wait(delay_ms)
+    integer, intent(in) :: delay_ms
+    integer :: start_count
+    integer :: current_count
+    integer :: rate
+    integer :: elapsed_ms
+
+    call system_clock(start_count, rate)
+    if (rate <= 0) return
+
+    do
+      call system_clock(current_count)
+      elapsed_ms = int((real(current_count - start_count) / real(rate)) * 1000.0)
+      if (elapsed_ms >= delay_ms) exit
+    end do
+  end subroutine spin_wait
 
 end module fgof_pty

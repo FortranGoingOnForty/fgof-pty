@@ -10,6 +10,7 @@ module fgof_pty_types
   public :: FGOF_PTY_ERR_IO_FAILED
   public :: FGOF_PTY_ERR_RESIZE_FAILED
   public :: FGOF_PTY_ERR_CLOSE_FAILED
+  public :: FGOF_PTY_ERR_TIMEOUT
   public :: FGOF_PTY_ERR_INTERNAL
   public :: pty_session
   public :: terminal_size
@@ -22,6 +23,7 @@ module fgof_pty_types
   integer, parameter :: FGOF_PTY_ERR_IO_FAILED = 22
   integer, parameter :: FGOF_PTY_ERR_RESIZE_FAILED = 23
   integer, parameter :: FGOF_PTY_ERR_CLOSE_FAILED = 24
+  integer, parameter :: FGOF_PTY_ERR_TIMEOUT = 25
   integer, parameter :: FGOF_PTY_ERR_INTERNAL = 99
 
   type :: terminal_size
@@ -36,6 +38,7 @@ module fgof_pty_types
     logical :: child_running = .false.
     logical :: completed = .false.
     logical :: exited_normally = .false.
+    logical :: eof_reached = .false.
     integer :: exit_code = -1
     integer :: term_signal = 0
     type(terminal_size) :: size = terminal_size()

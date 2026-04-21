@@ -174,10 +174,12 @@ contains
 
     if (rc == 0_c_int) then
       refreshed = refresh_posix_pty(session)
+      if (refreshed .and. .not. session%child_running) session%eof_reached = .true.
       text = ""
       return
     end if
 
+    session%eof_reached = .false.
     text = from_c_buffer(c_buffer, int(rc))
   end function read_some_posix_pty
 
