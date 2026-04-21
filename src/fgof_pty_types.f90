@@ -2,8 +2,27 @@ module fgof_pty_types
   implicit none
   private
 
+  public :: FGOF_PTY_OK
+  public :: FGOF_PTY_ERR_INVALID_COMMAND
+  public :: FGOF_PTY_ERR_INVALID_SIZE
+  public :: FGOF_PTY_ERR_SPAWN_FAILED
+  public :: FGOF_PTY_ERR_EXEC_FAILED
+  public :: FGOF_PTY_ERR_IO_FAILED
+  public :: FGOF_PTY_ERR_RESIZE_FAILED
+  public :: FGOF_PTY_ERR_CLOSE_FAILED
+  public :: FGOF_PTY_ERR_INTERNAL
   public :: pty_session
   public :: terminal_size
+
+  integer, parameter :: FGOF_PTY_OK = 0
+  integer, parameter :: FGOF_PTY_ERR_INVALID_COMMAND = 10
+  integer, parameter :: FGOF_PTY_ERR_INVALID_SIZE = 11
+  integer, parameter :: FGOF_PTY_ERR_SPAWN_FAILED = 20
+  integer, parameter :: FGOF_PTY_ERR_EXEC_FAILED = 21
+  integer, parameter :: FGOF_PTY_ERR_IO_FAILED = 22
+  integer, parameter :: FGOF_PTY_ERR_RESIZE_FAILED = 23
+  integer, parameter :: FGOF_PTY_ERR_CLOSE_FAILED = 24
+  integer, parameter :: FGOF_PTY_ERR_INTERNAL = 99
 
   type :: terminal_size
     integer :: rows = 24
@@ -14,7 +33,10 @@ module fgof_pty_types
     integer :: master_fd = -1
     integer :: child_pid = -1
     logical :: is_open = .false.
-    type(terminal_size) :: size
+    logical :: child_running = .false.
+    type(terminal_size) :: size = terminal_size()
+    integer :: error_code = FGOF_PTY_OK
+    character(len=:), allocatable :: error_message
   end type pty_session
 
 end module fgof_pty_types
