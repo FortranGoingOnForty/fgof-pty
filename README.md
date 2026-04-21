@@ -34,7 +34,7 @@ Implemented today:
 - public `fgof_pty` and `fgof_pty_types` modules
 - PTY session and terminal-size types
 - `spawn_pty()` for argv-based child launch on macOS and Linux
-- `read_some()`, `write_all()`, `resize_pty()`, and `close_pty()`
+- `read_some()`, `write_all()`, `resize_pty()`, `refresh_pty()`, and `close_pty()`
 - session-level error codes and messages
 - interactive smoke-test coverage and CI wiring
 
@@ -69,6 +69,7 @@ Current public procedures:
 - `default_terminal_size`
 - `spawn_pty`
 - `read_some`
+- `refresh_pty`
 - `write_all`
 - `resize_pty`
 - `close_pty`
@@ -77,7 +78,7 @@ Current public procedures:
 
 ```fortran
 program demo_pty
-  use fgof_pty, only : close_pty, pty_session, read_some, spawn_pty, write_all
+  use fgof_pty, only : close_pty, pty_session, read_some, refresh_pty, spawn_pty, write_all
   implicit none
 
   type(pty_session) :: session
@@ -87,6 +88,8 @@ program demo_pty
 
   if (.not. write_all(session, "hello" // new_line("a"))) error stop trim(session%error_message)
   print "(A)", read_some(session, 256)
+
+  if (.not. refresh_pty(session)) error stop trim(session%error_message)
 
   if (.not. close_pty(session)) error stop trim(session%error_message)
 end program demo_pty
