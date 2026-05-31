@@ -112,6 +112,8 @@ contains
     integer(c_int) :: sys_errno
     integer(c_int) :: rc
 
+    allocate(c_program(0))
+    allocate(c_argv_blob(0))
     c_program = to_c_string(program)
     if (present(argv)) then
       call pack_string_array(argv, arg_stride, c_argv_blob)
@@ -191,6 +193,7 @@ contains
     integer(c_int) :: rc
     integer(c_int) :: sys_errno
 
+    allocate(c_buffer(0))
     if (len(text) == 0) then
       success = .true.
       return

@@ -1,5 +1,11 @@
 module fgof_pty
-  use fgof_pty_posix, only : close_posix_pty, read_some_posix_pty, refresh_posix_pty, resize_posix_pty, spawn_posix_pty, write_all_posix_pty
+  use fgof_pty_posix, only : &
+    close_posix_pty, &
+    read_some_posix_pty, &
+    refresh_posix_pty, &
+    resize_posix_pty, &
+    spawn_posix_pty, &
+    write_all_posix_pty
   use fgof_pty_types, only : &
     FGOF_PTY_ERR_CLOSE_FAILED, &
     FGOF_PTY_ERR_INTERNAL, &
@@ -48,6 +54,8 @@ contains
 
   function default_terminal_size() result(size)
     type(terminal_size) :: size
+
+    size = terminal_size()
   end function default_terminal_size
 
   function spawn_pty(program, argv, size) result(session)
