@@ -34,6 +34,14 @@ static void fgof_pty_build_argv(const char *program,
     argv[argc + 1] = NULL;
 }
 
+static void fgof_pty_report_child_errno(int fd, int child_errno) {
+    ssize_t ignored;
+
+    do {
+        ignored = write(fd, &child_errno, sizeof(child_errno));
+    } while (ignored < 0 && errno == EINTR);
+}
+
 int fgof_pty_spawn(const char *program,
                    const char *argv_blob,
                    int argc,
@@ -107,14 +115,14 @@ int fgof_pty_spawn(const char *program,
 
         if (setsid() < 0) {
             child_errno = errno;
-            write(exec_pipe[1], &child_errno, sizeof(child_errno));
+            fgof_pty_report_child_errno(exec_pipe[1], child_errno);
             _exit(127);
         }
 
         slave_fd = open(slave_name, O_RDWR);
         if (slave_fd < 0) {
             child_errno = errno;
-            write(exec_pipe[1], &child_errno, sizeof(child_errno));
+            fgof_pty_report_child_errno(exec_pipe[1], child_errno);
             _exit(127);
         }
 
@@ -130,7 +138,7 @@ int fgof_pty_spawn(const char *program,
             dup2(slave_fd, STDOUT_FILENO) < 0 ||
             dup2(slave_fd, STDERR_FILENO) < 0) {
             child_errno = errno;
-            write(exec_pipe[1], &child_errno, sizeof(child_errno));
+            fgof_pty_report_child_errno(exec_pipe[1], child_errno);
             _exit(127);
         }
 
@@ -141,7 +149,7 @@ int fgof_pty_spawn(const char *program,
         argv = (char **) calloc((size_t) argc + 2U, sizeof(char *));
         if (argv == NULL) {
             child_errno = ENOMEM;
-            write(exec_pipe[1], &child_errno, sizeof(child_errno));
+            fgof_pty_report_child_errno(exec_pipe[1], child_errno);
             _exit(127);
         }
 
@@ -149,7 +157,7 @@ int fgof_pty_spawn(const char *program,
         execvp(program, argv);
 
         child_errno = errno;
-        write(exec_pipe[1], &child_errno, sizeof(child_errno));
+        fgof_pty_report_child_errno(exec_pipe[1], child_errno);
         _exit(127);
     }
 
